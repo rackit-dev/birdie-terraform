@@ -7,6 +7,12 @@ terraform {
       version = ">= 5.83"
     }
   }
+
+  backend "s3" {
+    bucket = "birdie-terraform-state-bucket"
+    key    = "terraform/vpc.tfstate"
+    region = "ap-northeast-2"
+  }
 }
 
 data "aws_availability_zones" "available" {}
