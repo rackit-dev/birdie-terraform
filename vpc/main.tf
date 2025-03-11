@@ -56,6 +56,10 @@ module "vpc" {
     Name = "NAT"
   }
 
+  nat_eip_tags = {
+    Name = "NAT-eip"
+  }
+
   igw_tags = {
     Name = "IGW"
   }

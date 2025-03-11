@@ -33,15 +33,50 @@ provider "aws" {
 # Security Group Module
 ################################################################################
 
-module "web_server_sg" {
+module "bastion_ec2_sg" {
   source  = "terraform-aws-modules/security-group/aws"
   version = "5.3.0"
   
-  name        = "web-server-sg"
-  description = "Security Group for Webserver Instance"
+  name        = "bastion-ec2-sg"
+  description = "Security Group for Bastion Host Instance"
   vpc_id      = data.terraform_remote_state.vpc.outputs.vpc_id
 
   ingress_with_cidr_blocks = [
+    {
+      rule       = "ssh-tcp"
+      description = "SSH port"
+      cidr_blocks = "0.0.0.0/0"
+    },
+  ]  
+  
+  egress_with_cidr_blocks = [
+    {
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = "0.0.0.0/0"
+    }
+  ]
+
+  tags = {
+    Terraform = "True"
+  }
+}
+
+module "fastapi_ec2_sg" {
+  source = "terraform-aws-modules/security-group/aws"
+  version = "5.3.0"
+
+  name = "fastapi-ec2-sg"
+  description = "Security Group for FastAPI Server Instance"
+  vpc_id = data.terraform_remote_state.vpc.outputs.vpc_id
+
+  ingress_with_cidr_blocks = [
+    {
+      rule       = "ssh-tcp"
+      description = "SSH port"
+      cidr_blocks = "${aws_eip.bastion_eip.public_ip}/32"
+    },
     {
       from_port   = 8080
       to_port     = 8080
@@ -50,22 +85,12 @@ module "web_server_sg" {
       cidr_blocks = "0.0.0.0/0"
     },
     {
-      rule       = "ssh-tcp"
-      description = "SSH port"
-      cidr_blocks = "0.0.0.0/0"
-    },
-    {
-      rule        = "mysql-tcp"
-      description = "MySQL port"
-      cidr_blocks = "0.0.0.0/0"
-    },
-    {
       rule        = "https-443-tcp"
       description = "Https port"
       cidr_blocks = "0.0.0.0/0"
     }
-  ]  
-  
+  ]
+
   egress_with_cidr_blocks = [
     {
       from_port   = 0
@@ -84,12 +109,22 @@ module "web_server_sg" {
 # Elastic IPs
 ################################################################################
 
-resource "aws_eip" "web_eip" {
+resource "aws_eip" "bastion_eip" {
   domain   = "vpc"
-  instance = module.ec2_instance_bastion.id  # 생성한 EC2 인스턴스에 EIP 할당
+  instance = module.ec2_instance_bastion.id
 
   tags = {
     Name      = "bastion-eip"
+    Terraform = "True"
+  }
+}
+
+resource "aws_eip" "fastapi_eip" {
+  domain   = "vpc"
+  instance = module.ec2_instance_fastapi.id
+
+  tags = {
+    Name      = "fastapi-eip"
     Terraform = "True"
   }
 }
@@ -104,12 +139,30 @@ module "ec2_instance_bastion" {
 
   name = "birdie-bastion-host"
 
-  instance_type          = "t2.micro"
-  ami                    = "ami-024ea438ab0376a47"
+  instance_type          = "t3.micro"
+  ami                    = local.ami
   key_name               = "birdie-key"
   monitoring             = true
-  vpc_security_group_ids = [module.web_server_sg.security_group_id]
+  vpc_security_group_ids = [module.bastion_ec2_sg.security_group_id]
   subnet_id              = data.terraform_remote_state.vpc.outputs.public_subnets[0]
+
+  tags = {
+    Terraform = "True"
+  }
+}
+
+module "ec2_instance_fastapi" {
+  source = "terraform-aws-modules/ec2-instance/aws"
+  version = "5.7.1"
+
+  name = "birdie-fastapi-host"
+
+  instance_type = "t3.medium"
+  ami = local.ami
+  key_name = "birdie-key"
+  monitoring = true
+  vpc_security_group_ids = [module.fastapi_ec2_sg.security_group_id]
+  subnet_id = data.terraform_remote_state.vpc.outputs.public_subnets[0]
 
   tags = {
     Terraform = "True"
