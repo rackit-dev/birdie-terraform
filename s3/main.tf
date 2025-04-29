@@ -41,3 +41,22 @@ module "s3_bucket" {
     Terraform = "True"
   }
 }
+
+module "s3_image_bucket" {
+  source  = "terraform-aws-modules/s3-bucket/aws"
+  version = "4.6.0"
+
+  bucket = "birdie-image-bucket"
+  acl = "private"
+
+  control_object_ownership = true
+  object_ownership         = "ObjectWriter"
+
+  versioning = {
+    enabled = true
+  } 
+
+  tags = {
+    Terraform = "True"
+  }
+}
